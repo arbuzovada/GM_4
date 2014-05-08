@@ -37,48 +37,31 @@ function [E, D, M, L] = varIsing(H, J, betaAll, opt_params, connect_type)
     beta0 = length(betaAll);
 
     % initialization
-    net = get_neighbors(vS, hS, beta0, connect_type);
+    [net, edges] = get_neighbors(vS, hS, beta0, connect_type);
     % probability of x = -1 and 1 for each temperature
-%     q = repmat(rand(vS, hS), [1, 1, beta0]);
+    q = repmat(rand(N, 1), 1, beta0);
+    H = reshape(H, N, 1);
 %     q_init = q;
-    load('q_init.mat');
-    q = q_init;
+%     load('q_init.mat');
+%     q = q_init;
     E = zeros(1, beta0);
     D = zeros(1, beta0);
-    L = zeros(1, beta0);
-    old_L = zeros(1, beta0);
     M = zeros(1, beta0);
     
     for t = 1 : MAX_ITER
         for i = 1 : N 
             % get new distribution q_i(x_i = 1)
-            q([0 : beta0 - 1] * N + i) = 1 ./ ...
+            q(i, :) = 1 ./ ...
                 (1 + exp(-2 * betaAll .* (J * sum(2 * q(net{i}) - 1, 1) + H(i))));
         end
         % L(q)
-        L = betaAll .* squeeze(J * (sum(sum(q(1 : end - 1, :, :) .* q(2 : end, :, :) - ...
-            (1 - q(1 : end - 1, :, :)) .* q(2 : end, :, :) - ...
-            q(1 : end - 1, :, :) .* (1 - q(2 : end, :, :)) + ...
-            (1 - q(1 : end - 1, :, :)) .* (1 - q(2 : end, :, :)))) + ...
-            sum(sum(q(:, 1 : end - 1, :) .* q(:, 2 : end, :) - ...
-            (1 - q(:, 1 : end - 1, :)) .* q(:, 2 : end, :) - ...
-            q(:, 1 : end - 1, :) .* (1 - q(:, 2 : end, :)) + ...
-            (1 - q(:, 1 : end - 1, :)) .* (1 - q(:, 2 : end, :))))) + ...
-            sum(sum(repmat(H, [1, 1, beta0]) .* (2 * q - 1))))';
+        L = betaAll .* (sum(repmat(H, 1, beta0) .* (2 * q - 1)) + ...
+            J * sum((2 * q(edges(:, 1), :) - 1) .* (2 * q(edges(:, 2), :) - 1)));
         Llog = log(q) .* q + log(1 - q) .* (1 - q);
         Llog(isnan(Llog)) = 0;
-        L = L + squeeze(sum(sum(-Llog)))';
+        L = L - sum(Llog);
         if all(L < TOL_CRIT)
             break;
         end
-        if any(old_L > L)
-            L(old_L > L)
-            old_L(old_L > L)
-            t
-            fprintf('ololo!');
-            break
-        end
-        old_L = L;
     end
-    save q.mat q
 end      

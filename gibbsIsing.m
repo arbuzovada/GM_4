@@ -21,17 +21,19 @@ function [E, D, M, S] = gibbsIsing(H, J, betaAll, num_iter, connect_type)
     % initialization
     net = get_neighbors(vS, hS, beta0, connect_type);
     % CHANGE TO RANDI! ALL ONES FOR SMOOTHNESS
-    S = ones([vS, hS, beta0]); % repmat(2 * randi(2, [vS, hS]) - 3, [1, 1, beta0]);
+    S = repmat(2 * randi(2, [vS, hS]) - 3, [1, 1, beta0]); %ones([vS, hS, beta0]); 
     E_samples = zeros(fix(2 * num_iter / 3), beta0);
     mu_samples = zeros(fix(2 * num_iter / 3), beta0);
     t0 = num_iter - fix(2 * num_iter / 3);
     
+    big_r = rand([N, beta0, num_iter]);
+    save big_S_r.mat S big_r
     for t = 1 : num_iter
         for i = 1 : N
             % get new distribution
             % p_i = p(x_i = 1 | X_{\i})
             p_i = 1 ./ (1 + exp(-2 * betaAll .* (J * sum(S(net{i}), 1) + H(i))));
-            S([0 : beta0 - 1] * N + i) = 2 * (rand(1, beta0) < p_i) - 1;
+            S([0 : beta0 - 1] * N + i) = 2 * (big_r(i, :, t) < p_i) - 1; %rand(1, beta0)
         end
         if t > t0
             E_samples(t - t0, :) = get_E(S, J, H, connect_type);
