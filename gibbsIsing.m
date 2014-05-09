@@ -14,6 +14,8 @@ function [E, D, M, S] = gibbsIsing(H, J, betaAll, num_iter, connect_type)
 %    M: 1-by-beta0 array of double, (math. exp. mu(X) ^ 2) ^ 0.5 / N
 %    S: vS-by-vH-by-beta0 array of ±1, examples of X
 
+    STEP = 20;
+    
     [vS, hS] = size(H);
     N = vS * hS;
     beta0 = length(betaAll);
@@ -21,9 +23,13 @@ function [E, D, M, S] = gibbsIsing(H, J, betaAll, num_iter, connect_type)
     % initialization
     [net, edges] = get_neighbors(vS, hS, beta0, connect_type);
     % CHANGE TO RANDI! ALL ONES FOR SMOOTHNESS
-    S = ones([vS, hS, beta0]); %repmat(2 * randi(2, [vS, hS]) - 3, [1, 1, beta0]); 
-    E_samples = zeros(fix(2 * num_iter / 3), beta0);
-    mu_samples = zeros(fix(2 * num_iter / 3), beta0);
+    S = repmat(2 * randi(2, [vS, hS]) - 3, [1, 1, beta0]); %ones([vS, hS, beta0]); %
+    nsamples = fix(num_iter / STEP) - fix(num_iter / 3 / STEP);
+%     E_samples = zeros(fix(2 * num_iter / 3), beta0);
+    E_samples = zeros(nsamples, beta0);
+%     mu_samples = zeros(fix(2 * num_iter / 3), beta0);
+    mu_samples = zeros(nsamples, beta0);
+    sample = 0;
     t0 = num_iter - fix(2 * num_iter / 3);
     
     for t = 1 : num_iter
@@ -33,11 +39,13 @@ function [E, D, M, S] = gibbsIsing(H, J, betaAll, num_iter, connect_type)
             p_i = 1 ./ (1 + exp(-2 * betaAll .* (J * sum(S(net{i}), 1) + H(i))));
             S([0 : beta0 - 1] * N + i) = 2 * (rand(1, beta0) < p_i) - 1;
         end
-        if t > t0
-            E_samples(t - t0, :) = get_E(S, J, H, edges);
-            mu_samples(t - t0, :) = get_mu(S);
+        if t > t0 && mod(t, STEP) == 0
+            sample = sample + 1;
+            E_samples(sample, :) = get_E(S, J, H, edges);
+            mu_samples(sample, :) = get_mu(S);
         end
     end
+    assert(sample == nsamples);
     
     % get E, D, M
     E = mean(E_samples, 1) / N;
@@ -55,6 +63,6 @@ function res = get_E(S, J, H, edges)
     [vS, hS, beta0] = size(S);
     sum_H = squeeze(sum(sum(repmat(H, [1, 1, beta0]) .* S)))';
     S = reshape(S, [vS * hS, beta0]);
-    sum_J = sum(S(edges(:, 1)) .* S(edges(:, 2)));
+    sum_J = sum(S(edges(:, 1), :) .* S(edges(:, 2), :));
     res = -(J * sum_J + sum_H);
 end
