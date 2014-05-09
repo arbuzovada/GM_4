@@ -42,29 +42,52 @@ function [E, D, M, L] = varIsing(H, J, betaAll, opt_params, connect_type)
     q = repmat(rand(N, 1), 1, beta0);
     H = reshape(H, N, 1);
 %     q_init = q;
-%     load('q_init.mat');
-%     q = q_init;
+%     save q_init.mat q_init
+    load('strangelove.mat');
+    q = q_init;
     D = zeros(1, beta0);
     
     for t = 1 : MAX_ITER
         for i = 1 : N 
             % get new distribution q_i(x_i = 1)
             q(i, :) = 1 ./ ...
-                (1 + exp(-2 * betaAll .* (J * sum(2 * q(net{i}) - 1, 1) + H(i))));
+                (1 + exp(-2 * betaAll .* ...
+                (J * sum(2 * q(net{i}) - 1, 1) + H(i))));
         end
         % L(q)
-        L = betaAll .* (sum(repmat(H, 1, beta0) .* (2 * q - 1)) + ...
-            J * sum((2 * q(edges(:, 1), :) - 1) .* (2 * q(edges(:, 2), :) - 1)));
+        L = betaAll .* (J * sum((2 * q(edges(:, 1), :) - 1) .* ...
+            (2 * q(edges(:, 2), :) - 1)) + ...
+            sum(repmat(H, 1, beta0) .* (2 * q - 1)));
         Llog = log(q) .* q + log(1 - q) .* (1 - q);
         Llog(isnan(Llog)) = 0;
         L = L - sum(Llog);
-        if all(L < TOL_CRIT)
-            break;
-        end
+%         if all(L < TOL_CRIT)
+%             break;
+%         end
     end
+    q_final = q;
+    save q_final.mat q_final
     E = -(sum(repmat(H, 1, beta0) .* (2 * q - 1)) + ...
-        J * sum((2 * q(edges(:, 1), :) - 1) .* (2 * q(edges(:, 2), :) - 1))) / N;
-    inds = [reshape(repmat([1 : N]', 1, N)', N ^ 2, 1), repmat([1 : N], 1, N)'];
+        J * sum((2 * q(edges(:, 1), :) - 1) .* ...
+        (2 * q(edges(:, 2), :) - 1))) / N;
+    inds = [reshape(repmat([1 : N]', 1, N)', N ^ 2, 1), ...
+        repmat([1 : N], 1, N)'];
     inds = inds(inds(:, 1) ~= inds(:, 2), :);
-    M = (sum((2 * q(inds(:, 1), :) - 1) .* (2 * q(inds(:, 2), :) - 1)) + N) .^ 0.5 / N ^ 2;
-end      
+    M = (sum((2 * q(inds(:, 1), :) - 1) .* ...
+        (2 * q(inds(:, 2), :) - 1)) + N) .^ 0.5 / N;
+    D1 = sum(repmat(H(inds(:, 1)), 1, beta0) .* (2 * q(inds(:, 1), :) - 1) .* ...
+        repmat(H(inds(:, 2)), 1, beta0) .* (2 * q(inds(:, 2), :) - 1)) + ...
+        repmat(sum(sum(H .^ 2)), 1, beta0);
+    nedges = size(edges, 1);
+    inds = [repmat(edges, N, 1), ...
+        reshape(repmat([1 : N]', 1, nedges)', N *nedges, 1)];
+    D2 = 2 * J * (sum((2 * q(inds(:, 1), :) - 1) .* (2 * q(inds(:, 2), :) - 1) .* ...
+        (2 * q(inds(:, 3), :) - 1) .* repmat(H(inds(:, 3)), 1, beta0)) + 0);
+%     inds = [reshape(repmat(edges, 1, nedges)', 2, nedges ^ 2)', ...
+%         repmat(edges', 1, nedges)'];
+%     % equal edges -> +nedges in D3
+%     inds = inds(~all((inds(:, 1:2) == inds(:, 3:4))'));
+%     % 1 equal vertice -> + in D3
+%     D3 = sum((2 * q(inds(:, 1), :) - 1) .* (2 * q(inds(:, 2), :) - 1) .* ...
+%         (2 * q(inds(:, 3), :) - 1) .* (2 * q(inds(:, 4), :) - 1)) + nedges;
+end
