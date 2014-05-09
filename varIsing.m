@@ -44,9 +44,7 @@ function [E, D, M, L] = varIsing(H, J, betaAll, opt_params, connect_type)
 %     q_init = q;
 %     load('q_init.mat');
 %     q = q_init;
-    E = zeros(1, beta0);
     D = zeros(1, beta0);
-    M = zeros(1, beta0);
     
     for t = 1 : MAX_ITER
         for i = 1 : N 
@@ -64,4 +62,9 @@ function [E, D, M, L] = varIsing(H, J, betaAll, opt_params, connect_type)
             break;
         end
     end
+    E = -(sum(repmat(H, 1, beta0) .* (2 * q - 1)) + ...
+        J * sum((2 * q(edges(:, 1), :) - 1) .* (2 * q(edges(:, 2), :) - 1))) / N;
+    inds = [reshape(repmat([1 : N]', 1, N)', N ^ 2, 1), repmat([1 : N], 1, N)'];
+    inds = inds(inds(:, 1) ~= inds(:, 2), :);
+    M = (sum((2 * q(inds(:, 1), :) - 1) .* (2 * q(inds(:, 2), :) - 1)) + N) .^ 0.5 / N ^ 2;
 end      
