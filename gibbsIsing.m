@@ -23,11 +23,10 @@ function [E, D, M, S] = gibbsIsing(H, J, betaAll, num_iter, connect_type)
     % initialization
     [net, edges] = get_neighbors(vS, hS, beta0, connect_type);
     % CHANGE TO RANDI! ALL ONES FOR SMOOTHNESS
-    S = repmat(2 * randi(2, [vS, hS]) - 3, [1, 1, beta0]); %ones([vS, hS, beta0]); %
+%     S = ones([vS, hS, beta0]);
+    S = repmat(2 * randi(2, [vS, hS]) - 3, [1, 1, beta0]);
     nsamples = fix(num_iter / STEP) - fix(num_iter / 3 / STEP);
-%     E_samples = zeros(fix(2 * num_iter / 3), beta0);
     E_samples = zeros(nsamples, beta0);
-%     mu_samples = zeros(fix(2 * num_iter / 3), beta0);
     mu_samples = zeros(nsamples, beta0);
     sample = 0;
     t0 = num_iter - fix(2 * num_iter / 3);
