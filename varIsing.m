@@ -1,4 +1,5 @@
-function [best_E, best_D, best_M, best_L] = varIsing(H, J, betaAll, opt_params, connect_type)
+function [best_E, best_D, best_M, best_L] = varIsing(H, J, betaAll, ...
+    opt_params, connect_type)
 % This function implements variational inference
 %
 % INPUT:
@@ -39,15 +40,13 @@ function [best_E, best_D, best_M, best_L] = varIsing(H, J, betaAll, opt_params, 
     % initialization
     [net, edges] = get_neighbors(vS, hS, beta0, connect_type);
     H = reshape(H, N, 1);
-    D = zeros(1, beta0);
-%     best_E = zeros(1, beta0);
-%     best_D = zeros(1, beta0);
-%     best_M = zeros(1, beta0);
     best_L = zeros(1, beta0);
+    best_q = zeros(N, beta0);
     
     for w = 1 : NUM_START
         % probability of x = -1 and 1 for each temperature
         q = repmat(rand(N, 1), 1, beta0);
+%         q = repmat(zeros(N, 1), 1, beta0);
         for t = 1 : MAX_ITER
             for i = 1 : N 
                 % get new distribution q_i(x_i = 1)
@@ -74,25 +73,48 @@ function [best_E, best_D, best_M, best_L] = varIsing(H, J, betaAll, opt_params, 
         inds = inds(inds(:, 1) ~= inds(:, 2), :);
         M = (sum((2 * q(inds(:, 1), :) - 1) .* ...
             (2 * q(inds(:, 2), :) - 1)) + N) .^ 0.5 / N;
-%         D1 = sum(repmat(H(inds(:, 1)), 1, beta0) .* (2 * q(inds(:, 1), :) - 1) .* ...
-%             repmat(H(inds(:, 2)), 1, beta0) .* (2 * q(inds(:, 2), :) - 1)) + ...
-%             repmat(sum(sum(H .^ 2)), 1, beta0);
-%         nedges = size(edges, 1);
-%         inds = [repmat(edges, N, 1), ...
-%             reshape(repmat([1 : N]', 1, nedges)', N *nedges, 1)];
-%         D2 = 2 * J * (sum((2 * q(inds(:, 1), :) - 1) .* (2 * q(inds(:, 2), :) - 1) .* ...
-%             (2 * q(inds(:, 3), :) - 1) .* repmat(H(inds(:, 3)), 1, beta0)) + 0);
-%         inds = [reshape(repmat(edges, 1, nedges)', 2, nedges ^ 2)', ...
-%             repmat(edges', 1, nedges)'];
-%         % equal edges -> +nedges in D3
-%         inds = inds(~all((inds(:, 1:2) == inds(:, 3:4))'));
-%         % 1 equal vertice -> + in D3
-%         D3 = sum((2 * q(inds(:, 1), :) - 1) .* (2 * q(inds(:, 2), :) - 1) .* ...
-%             (2 * q(inds(:, 3), :) - 1) .* (2 * q(inds(:, 4), :) - 1)) + nedges;
+        D1 = sum(bsxfun(@plus, ...
+            bsxfun(@times, (2 * q(inds(:, 1), :) - 1), H(inds(:, 1))) .* ...
+            bsxfun(@times, (2 * q(inds(:, 2), :) - 1), H(inds(:, 2))), ...
+            sum(sum(H .^ 2))));
+        nedges = size(edges, 1);
+        inds = [repmat(edges, N, 1), ...
+            reshape(repmat([1 : N]', 1, nedges)', N * nedges, 1)];
+        pair_inds = inds(inds(:, 2) == inds(:, 3), :);
+        pair_inds = [pair_inds; inds(inds(:, 1) == inds(:, 3), [2 1 3])]; %#ok
+        inds = inds((inds(:, 1) ~= inds(:, 3)) & ...
+                    (inds(:, 2) ~= inds(:, 3)), :);
+        D2 = 2 * J * (...
+            sum(bsxfun(@times, ...
+            (2 * q(inds(:, 1), :) - 1) .* (2 * q(inds(:, 2), :) - 1) .* ...
+            (2 * q(inds(:, 3), :) - 1), H(inds(:, 3)))) + ...
+            sum(bsxfun(@times, ...
+            (2 * q(pair_inds(:, 1), :) - 1), H(pair_inds(:, 3)))));
+        inds = [reshape(repmat(edges, 1, nedges)', 2, nedges ^ 2)', ...
+            repmat(edges', 1, nedges)'];
+        % equal edges -> + nedges in D3
+        inds = inds(~all((inds(:, 1:2) == inds(:, 3:4))'), :);
+        % 1 equal vertice -> pair_inds
+        pair_inds = inds(inds(:, 1) == inds(:, 3), :);
+        pair_inds = [pair_inds; inds(inds(:, 1) == inds(:, 4), [1 2 4 3])]; %#ok
+        pair_inds = [pair_inds; inds(inds(:, 2) == inds(:, 3), [2 1 3 4])]; %#ok
+        pair_inds = [pair_inds; inds(inds(:, 2) == inds(:, 4), [2 1 4 3])]; %#ok
+        D3 = J ^ 2 * (sum((2 * q(edges(:, 1), :) - 1) .* ... % all possible
+            (2 * q(edges(:, 2), :) - 1)) .^ 2 - ...
+            sum(((2 * q(edges(:, 1), :) - 1) .* ... % equal edges
+            (2 * q(edges(:, 2), :) - 1)) .^ 2) + nedges - ...
+            sum((2 * q(pair_inds(:, 1), :) - 1) .^ 2 .* ... % 1 vertice
+            (2 * q(pair_inds(:, 2), :) - 1) .* ...
+            (2 * q(pair_inds(:, 4), :) - 1)) + ...
+            sum((2 * q(pair_inds(:, 2), :) - 1) .* ...
+            (2 * q(pair_inds(:, 4), :) - 1)));
+        D = (D1 + D2 + D3 - (N * E) .^ 2) .^ 0.5 / N;
         best_inds = L > best_L;
         best_E(best_inds) = E(best_inds);
         best_D(best_inds) = D(best_inds);
         best_M(best_inds) = M(best_inds);
         best_L(best_inds) = L(best_inds);
+        best_q(:, best_inds) = q(:, best_inds);
     end
+    save q_final.mat best_q vS hS beta0
 end
